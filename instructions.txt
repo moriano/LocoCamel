@@ -1,0 +1,25 @@
+Instructions
+
+Set up a java project that will run with
+
+Java 21
+SpringBoot (version 3)
+Apache Camel 4 (Specifically version 4.11)
+Maven
+Log4j2
+
+The project will use SpringWEB to expose two REST APIS (both HTTP GET method)
+
+/ping ==> the response will be "pong"
+/camel ==> This will call apache camel, more details later
+
+The apache camel part is simple: We will define a simple camel route using Java DSL (Domain Specific Language). The actual details of the route are not important, we can 
+use a simple hello world case. 
+
+Ultimately what i want to do is to DEBUG the apache camel route, for that there is a maven pacakge called "camel-debug", i need you to set that dependency for me. 
+
+I will use IntelliJ and the apache camel plugin to debug the apache camel route. 
+
+Configure log4j2 so that it prints the log lines to the console, the log lines must include the fully qualified java class, the line number, the log level message and the timestamp
+
+Lets do this!
