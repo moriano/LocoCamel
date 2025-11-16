@@ -46,20 +46,6 @@
             <version>${camel.version}</version>
         </dependency>
 
-        <!-- Apache Camel Debug -->
-        <dependency>
-            <groupId>org.apache.camel</groupId>
-            <artifactId>camel-debug</artifactId>
-            <version>${camel.version}</version>
-        </dependency>
-
-        <!-- Hawtio for Web-based Camel Debugging -->
-        <dependency>
-            <groupId>io.hawt</groupId>
-            <artifactId>hawtio-springboot</artifactId>
-            <version>4.2.0</version>
-        </dependency>
-
         <!-- Log4j2 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -73,6 +59,40 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <profiles>
+        <!-- Development Profile: Includes debugging tools (Hawtio, Camel Debug, JMX) -->
+        <profile>
+            <id>dev</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <dependencies>
+                <!-- Apache Camel Debug - Only for development -->
+                <dependency>
+                    <groupId>org.apache.camel</groupId>
+                    <artifactId>camel-debug</artifactId>
+                    <version>${camel.version}</version>
+                </dependency>
+
+                <!-- Hawtio for Web-based Camel Debugging - Only for development -->
+                <dependency>
+                    <groupId>io.hawt</groupId>
+                    <artifactId>hawtio-springboot</artifactId>
+                    <version>4.2.0</version>
+                </dependency>
+            </dependencies>
+        </profile>
+
+        <!-- Production Profile: Excludes debugging tools for smaller, more secure artifacts -->
+        <profile>
+            <id>prod</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <!-- No debugging dependencies included -->
+        </profile>
+    </profiles>
 
     <build>
         <plugins>
