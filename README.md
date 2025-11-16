@@ -76,9 +76,9 @@ The project includes a simple Camel route (`hello-route`) defined in `HelloRoute
 ```java
 from("direct:hello")
     .routeId("hello-route")
-    .log("Received request to hello route").id("log-start")
-    .setBody(constant("Hello from Apache Camel!")).id("set-body")
-    .log("Returning response: ${body}").id("log-end");
+    .log("Received request to hello route")
+    .setBody(constant("Hello from Apache Camel!"))
+    .log("Returning response: ${body}");
 ```
 
 ``This route:
@@ -88,7 +88,6 @@ from("direct:hello")
 4. Logs the response
 5. Returns the message
 ``
-Each step has an explicit ID (`log-start`, `set-body`, `log-end`) which is required for debugging.
 
 ## Debugging with Hawtio
 
@@ -127,7 +126,6 @@ You'll see the Hawtio dashboard (no authentication required in this configuratio
 The Hawtio console will display a visual diagram of your route showing:
 - All EIP (Enterprise Integration Pattern) steps
 - The flow from `direct:hello` through each step
-- Each node labeled with its ID (`log-start`, `set-body`, `log-end`)
 
 ### Step 5: Enable Route Debugging
 
@@ -137,7 +135,7 @@ The Hawtio console will display a visual diagram of your route showing:
 
 ### Step 6: Set Breakpoints
 
-1. Click on any step in the route diagram (e.g., `log-start` or `set-body`)
+1. Click on any step in the route diagram
 2. In the context menu or details panel, click **"Add Breakpoint"** or **"Toggle Breakpoint"**
 3. A breakpoint indicator (usually a red dot) will appear on that step
 
