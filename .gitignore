@@ -41,3 +41,6 @@ spring-boot-devtools.properties
 *.bak
 *.swp
 *~
+
+# Standalone Hawtio JAR (downloaded by run-hawtio script)
+hawtio-app-*.jar

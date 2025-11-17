@@ -46,6 +46,12 @@
             <version>${camel.version}</version>
         </dependency>
 
+        <!-- Spring Boot Actuator - For management endpoints -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Log4j2 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -61,7 +67,8 @@
     </dependencies>
 
     <profiles>
-        <!-- Development Profile: Includes debugging tools (Hawtio, Camel Debug, JMX) -->
+        <!-- Development Profile: Includes debugging tools (Camel Debug, JMX) -->
+        <!-- Note: Hawtio runs standalone via JBang, not embedded -->
         <profile>
             <id>dev</id>
             <activation>
@@ -75,13 +82,19 @@
                     <version>${camel.version}</version>
                 </dependency>
 
-                <!-- Hawtio for Web-based Camel Debugging - Only for development -->
+                <!-- Hawtio Spring Boot - Provides Jolokia integration -->
+                <!-- Note: We use standalone Hawtio 4.6.1 via JBang, but this dependency -->
+                <!-- provides the necessary Jolokia Spring Boot autoconfiguration -->
                 <dependency>
                     <groupId>io.hawt</groupId>
                     <artifactId>hawtio-springboot</artifactId>
                     <version>4.2.0</version>
                 </dependency>
             </dependencies>
+            <properties>
+                <!-- Enable JMX for remote debugging -->
+                <camel.jmx.enabled>true</camel.jmx.enabled>
+            </properties>
         </profile>
 
         <!-- Production Profile: Excludes debugging tools for smaller, more secure artifacts -->
