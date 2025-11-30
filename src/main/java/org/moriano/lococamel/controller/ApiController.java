@@ -21,4 +21,22 @@ public class ApiController {
         String result = producerTemplate.requestBody("direct:hello", null, String.class);
         return result;
     }
+
+    @GetMapping("/choice")
+    public String choice() {
+        String result = producerTemplate.requestBody("direct:choice", null, String.class);
+        return result;
+    }
+
+    @GetMapping("/goodbye")
+    public String goodbye() {
+        String result = producerTemplate.requestBody("direct:goodbye", null, String.class);
+        return result;
+    }
+
+    @GetMapping("/hello-and-goodbye")
+    public String helloAndGoodbye() {
+        String result = producerTemplate.requestBody("direct:hello-and-goodbye", null, String.class);
+        return result;
+    }
 }

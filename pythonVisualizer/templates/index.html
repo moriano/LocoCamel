@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camel Route Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .endpoint {
+            background-color: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .method {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .path {
+            font-family: monospace;
+            color: #0066cc;
+        }
+        .description {
+            margin-top: 10px;
+            color: #666;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <h1>Camel Route Visualizer</h1>
+    <p>A Flask-based application for visualizing Apache Camel routes via Jolokia</p>
+
+    <h2>Available Endpoints:</h2>
+
+    <div class="endpoint">
+        <span class="method">GET</span>
+        <span class="path"><a href="/routes">/routes</a></span>
+        <div class="description">Get a list of all Camel routes in the system (by ID)</div>
+    </div>
+
+    <div class="endpoint">
+        <span class="method">GET</span>
+        <span class="path">/route/&lt;route_id&gt;</span>
+        <div class="description">Get detailed information about a specific route</div>
+        <div class="description">Example: <a href="/route/hello-route">/route/hello-route</a></div>
+    </div>
+
+    <div class="endpoint">
+        <span class="method">GET</span>
+        <span class="path">/route/&lt;route_id&gt;/graph</span>
+        <div class="description">Get SVG visualization of the route</div>
+        <div class="description">Example: <a href="/route/hello-route/graph">/route/hello-route/graph</a></div>
+    </div>
+
+    <div style="margin-top: 30px; padding: 15px; background-color: #fff3cd; border-radius: 5px;">
+        <strong>Note:</strong> Make sure your Camel application is running on port 8080 with Jolokia enabled (dev profile).
+    </div>
+</body>
+</html>
