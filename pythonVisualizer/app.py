@@ -487,6 +487,8 @@ def generate_branching_route_svg(route_id, route_xml, processors):
             '.box-detail { fill: white; font-family: Arial, sans-serif; font-size: 11px; }',
             '.arrow { stroke: #333; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }',
             '.branch-label { fill: #333; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; }',
+            'a { cursor: pointer; }',
+            'a:hover .route-call-box { fill: #555555; }',
             '</style>',
             '<marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">',
             '<polygon points="0 0, 10 3, 0 6" fill="#333" />',
@@ -513,9 +515,10 @@ def generate_branching_route_svg(route_id, route_xml, processors):
             elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
             detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
             box_class = get_box_class(elem_tag, elem)
+            route_link = get_route_link_from_element(elem, elem_tag)
 
             box_parts, actual_height = draw_box(center_x - box_width/2, current_y, box_width, box_height,
-                                       elem_id, elem_tag, detail, box_class)
+                                       elem_id, elem_tag, detail, box_class, route_link)
             svg_parts.extend(box_parts)
             current_y += actual_height + arrow_height
             svg_parts.append(f'<line x1="{center_x}" y1="{current_y - arrow_height}" x2="{center_x}" y2="{current_y}" class="arrow" />')
@@ -559,9 +562,10 @@ def generate_branching_route_svg(route_id, route_xml, processors):
                     # Regular element (not a multicast direct: to)
                     detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
                     box_class = get_box_class(elem_tag, elem)
+                    route_link = get_route_link_from_element(elem, elem_tag)
 
                     box_parts, actual_height = draw_box(branch_x - box_width/2, branch_y, box_width, box_height,
-                                               elem_id, elem_tag, detail, box_class)
+                                               elem_id, elem_tag, detail, box_class, route_link)
                     svg_parts.extend(box_parts)
                     branch_y += actual_height
                     # Only add arrow between elements
@@ -591,9 +595,10 @@ def generate_branching_route_svg(route_id, route_xml, processors):
             elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
             detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
             box_class = get_box_class(elem_tag, elem)
+            route_link = get_route_link_from_element(elem, elem_tag)
 
             box_parts, actual_height = draw_box(center_x - box_width/2, current_y, box_width, box_height,
-                                       elem_id, elem_tag, detail, box_class)
+                                       elem_id, elem_tag, detail, box_class, route_link)
             svg_parts.extend(box_parts)
             current_y += actual_height
             if after_choice.index(elem) < len(after_choice) - 1:
@@ -755,9 +760,10 @@ def render_inlined_route_with_branching(called_route_xml, branch_x, branch_y, bo
                 inlined_elem = inlined_proc['element']
                 inlined_detail = get_element_detail(inlined_elem, inlined_tag, proc_map.get(inlined_proc['id'], {}))
                 inlined_box_class = get_box_class(inlined_tag, inlined_elem)
+                route_link = get_route_link_from_element(inlined_elem, inlined_tag)
 
                 box_parts, actual_height = draw_box(branch_x - box_width/2, current_y, box_width, box_height,
-                                           inlined_elem.get('id', ''), inlined_tag, inlined_detail, inlined_box_class)
+                                           inlined_elem.get('id', ''), inlined_tag, inlined_detail, inlined_box_class, route_link)
                 svg_parts.extend(box_parts)
                 current_y += actual_height
                 # Only add arrow if not the last inlined processor
@@ -795,9 +801,10 @@ def render_inlined_route_with_branching(called_route_xml, branch_x, branch_y, bo
             elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
             detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
             box_class = get_box_class(elem_tag, elem)
+            route_link = get_route_link_from_element(elem, elem_tag)
 
             box_parts, actual_height = draw_box(branch_x - box_width/2, current_y, box_width, box_height,
-                                       elem_id, elem_tag, detail, box_class)
+                                       elem_id, elem_tag, detail, box_class, route_link)
             svg_parts.extend(box_parts)
             current_y += actual_height + arrow_height
             svg_parts.append(f'<line x1="{branch_x}" y1="{current_y - arrow_height}" x2="{branch_x}" y2="{current_y}" class="arrow" />')
@@ -852,9 +859,10 @@ def render_inlined_route_with_branching(called_route_xml, branch_x, branch_y, bo
                 elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
                 detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
                 box_class = get_box_class(elem_tag, elem)
+                route_link = get_route_link_from_element(elem, elem_tag)
 
                 box_parts, actual_height = draw_box(sub_branch_x - box_width/2, sub_branch_y, box_width, box_height,
-                                           elem_id, elem_tag, detail, box_class)
+                                           elem_id, elem_tag, detail, box_class, route_link)
                 svg_parts.extend(box_parts)
                 sub_branch_y += actual_height
                 # Only add arrow between elements
@@ -883,9 +891,10 @@ def render_inlined_route_with_branching(called_route_xml, branch_x, branch_y, bo
             elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
             detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
             box_class = get_box_class(elem_tag, elem)
+            route_link = get_route_link_from_element(elem, elem_tag)
 
             box_parts, actual_height = draw_box(branch_x - box_width/2, current_y, box_width, box_height,
-                                       elem_id, elem_tag, detail, box_class)
+                                       elem_id, elem_tag, detail, box_class, route_link)
             svg_parts.extend(box_parts)
             current_y += actual_height
             if after_branch.index(elem) < len(after_branch) - 1:
@@ -957,7 +966,8 @@ def generate_sequential_route_svg(route_id, from_id, from_uri, processors, route
                         'type': 'route-call',
                         'id': '',
                         'detail': f'Calling route: {called_route_id}',
-                        'box_class': 'route-call-box'
+                        'box_class': 'route-call-box',
+                        'route_link': called_route_id
                     })
 
                     # Parse and inline the called route's processors
@@ -970,20 +980,24 @@ def generate_sequential_route_svg(route_id, from_id, from_uri, processors, route
                         # Get details for this processor
                         detail = get_element_detail(elem, tag, {})
                         box_class = get_box_class(tag, elem)
+                        route_link = get_route_link_from_element(elem, tag)
 
                         elements_to_draw.append({
                             'type': tag,
                             'id': elem.get('id', ''),
                             'detail': detail,
-                            'box_class': box_class
+                            'box_class': box_class,
+                            'route_link': route_link
                         })
                 else:
-                    # Couldn't fetch route, just show the "to" box
+                    # Couldn't fetch route, use fallback route name
+                    fallback_route_name = uri.replace('direct:', '') + '-route'
                     elements_to_draw.append({
                         'type': 'to',
                         'id': proc_id,
                         'detail': uri,
-                        'box_class': 'default-box'
+                        'box_class': 'default-box',
+                        'route_link': fallback_route_name
                     })
             else:
                 # Non-direct URI, show as "to" box
@@ -1032,6 +1046,8 @@ def generate_sequential_route_svg(route_id, from_id, from_uri, processors, route
         '.box-detail { fill: white; font-family: Arial, sans-serif; font-size: 11px; }',
         '.arrow { stroke: #333; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }',
         '.branch-label { fill: #333; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; }',
+        'a { cursor: pointer; }',
+        'a:hover .route-call-box { fill: #555555; }',
         '</style>',
         '<marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">',
         '<polygon points="0 0, 10 3, 0 6" fill="#333" />',
@@ -1047,7 +1063,7 @@ def generate_sequential_route_svg(route_id, from_id, from_uri, processors, route
         # Draw box
         box_parts, actual_height = draw_box(
             start_x, current_y, box_width, box_height,
-            elem['id'], elem['type'], elem['detail'], elem['box_class']
+            elem['id'], elem['type'], elem['detail'], elem['box_class'], elem.get('route_link')
         )
         svg_parts.extend(box_parts)
         current_y += actual_height
@@ -1093,8 +1109,35 @@ def wrap_text(text, max_chars_per_line=35):
     return lines
 
 
-def draw_box(x, y, width, height, box_id, box_type, detail, box_class):
-    """Draw a single box in the SVG - returns (svg_parts, actual_height)"""
+def get_route_link_from_element(elem, elem_tag):
+    """Extract actual route ID from a 'to' element with direct: URI for linking
+
+    Returns: route ID (str) or None
+    """
+    if elem_tag.lower() == 'to':
+        uri = elem.get('uri', '')
+        if uri.startswith('direct:'):
+            # Fetch the route XML to get the actual route ID
+            route_xml = fetch_route_by_uri(uri)
+            if route_xml:
+                try:
+                    route_root = ET.fromstring(route_xml)
+                    route_id = route_root.get('id')
+                    if route_id:
+                        return route_id
+                except Exception as e:
+                    logger.warning(f"Failed to parse route XML for {uri}: {e}")
+            # Fallback: append -route to the direct name
+            return uri.replace('direct:', '') + '-route'
+    return None
+
+
+def draw_box(x, y, width, height, box_id, box_type, detail, box_class, route_link=None):
+    """Draw a single box in the SVG - returns (svg_parts, actual_height)
+
+    Args:
+        route_link: If provided, wraps the box in an <a> tag linking to /route/{route_link}/graph
+    """
     # Calculate how many lines the detail text will take
     actual_height = height
     if detail:
@@ -1107,11 +1150,17 @@ def draw_box(x, y, width, height, box_id, box_type, detail, box_class):
     # Customize box title for route-call boxes
     display_title = "→ Call Route" if box_type == "route-call" else box_type
 
-    parts = [
+    parts = []
+
+    # Wrap in <a> tag if route_link is provided
+    if route_link:
+        parts.append(f'<a href="/route/{route_link}/graph">')
+
+    parts.extend([
         f'<rect x="{x}" y="{y}" width="{width}" height="{actual_height}" class="box {box_class}" rx="5" />',
         f'<text x="{x + width/2}" y="{y + 25}" text-anchor="middle" class="box-text">{display_title}</text>',
         f'<text x="{x + width/2}" y="{y + 42}" text-anchor="middle" class="box-detail">ID: {box_id}</text>',
-    ]
+    ])
 
     # Add detail text if available with multiline support
     if detail:
@@ -1127,6 +1176,10 @@ def draw_box(x, y, width, height, box_id, box_type, detail, box_class):
 
         text_elem_parts.append('</text>')
         parts.append(''.join(text_elem_parts))
+
+    # Close <a> tag if route_link was provided
+    if route_link:
+        parts.append('</a>')
 
     return parts, actual_height
 
