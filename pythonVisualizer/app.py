@@ -363,10 +363,11 @@ def get_route_graph(route_id):
                 logger.warning(f"Failed to parse route XML: {e}")
                 from_id = "from"
 
-        # Generate SVG - check if we have choice elements
+        # Generate SVG - check if we have choice or multicast elements
         has_choice = any(p.get('processorName') == 'choice' for p in processors)
+        has_multicast = any(p.get('processorName') == 'multicast' for p in processors)
 
-        if has_choice and route_xml:
+        if (has_choice or has_multicast) and route_xml:
             # Use XML-based branching visualizer
             svg = generate_branching_route_svg(route_id, route_xml, processors)
         else:
@@ -403,29 +404,35 @@ def generate_branching_route_svg(route_id, route_xml, processors):
         # Parse route structure
         from_elem = root.find('.//camel:from', ns) or root.find('.//from')
         choice_elem = root.find('.//camel:choice', ns) or root.find('.//choice')
+        multicast_elem = root.find('.//camel:multicast', ns) or root.find('.//multicast')
 
-        # Get elements before choice
+        # Determine branch element type
+        branch_elem = choice_elem if choice_elem is not None else multicast_elem
+        branch_tag = 'choice' if choice_elem is not None else 'multicast'
+
+        # Get elements before branching element
         before_choice = []
         for child in root:
             if child.tag.endswith('from'):
                 continue
-            if child.tag.endswith('choice'):
+            if child.tag.endswith(('choice', 'multicast')):
                 break
             before_choice.append(child)
 
-        # Get elements after choice
+        # Get elements after branching element
         after_choice = []
-        found_choice = False
+        found_branch = False
         for child in root:
-            if child.tag.endswith('choice'):
-                found_choice = True
+            if child.tag.endswith(('choice', 'multicast')):
+                found_branch = True
                 continue
-            if found_choice:
+            if found_branch:
                 after_choice.append(child)
 
-        # Get choice branches
+        # Get branches
         branches = []
         if choice_elem is not None:
+            # Handle choice branches
             when_elems = choice_elem.findall('.//camel:when', ns) or choice_elem.findall('.//when')
             otherwise_elem = choice_elem.find('.//camel:otherwise', ns) or choice_elem.find('.//otherwise')
 
@@ -435,6 +442,16 @@ def generate_branching_route_svg(route_id, route_xml, processors):
 
             if otherwise_elem is not None:
                 branch = {'label': 'otherwise', 'elements': list(otherwise_elem)}
+                branches.append(branch)
+        elif multicast_elem is not None:
+            # Handle multicast branches - each direct child "to" is a branch
+            to_elems = multicast_elem.findall('.//camel:to', ns) or multicast_elem.findall('.//to')
+            # Filter to only direct children
+            to_elems = [elem for elem in multicast_elem if elem.tag.endswith('to')]
+
+            for i, to_elem in enumerate(to_elems):
+                uri = to_elem.get('uri', '')
+                branch = {'label': f'branch {i+1}: {uri}', 'elements': [to_elem], 'uri': uri}
                 branches.append(branch)
 
         # Calculate dimensions
@@ -449,9 +466,10 @@ def generate_branching_route_svg(route_id, route_xml, processors):
         before_height = len(before_choice) * (box_height + arrow_height)
         after_height = len(after_choice) * (box_height + arrow_height)
 
-        total_height = current_y + (box_height + arrow_height) + before_height + branch_height + after_height + 100
+        # Initial height estimate (will be updated at the end)
+        total_height = current_y + (box_height + arrow_height) + before_height + branch_height + after_height + 500
 
-        # Start SVG
+        # Start SVG (we'll update the height later)
         svg_parts = [
             f'<svg width="{total_width}" height="{total_height}" xmlns="http://www.w3.org/2000/svg">',
             '<defs>',
@@ -461,6 +479,8 @@ def generate_branching_route_svg(route_id, route_xml, processors):
             '.log-box { fill: #2196F3; }',
             '.setbody-box { fill: #FF9800; }',
             '.choice-box { fill: #9C27B0; }',
+            '.multicast-box { fill: #673AB7; }',
+            '.route-call-box { fill: #757575; }',
             '.setproperty-box { fill: #00BCD4; }',
             '.default-box { fill: #9E9E9E; }',
             '.box-text { fill: white; font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; }',
@@ -492,7 +512,7 @@ def generate_branching_route_svg(route_id, route_xml, processors):
             elem_id = elem.get('id', '')
             elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
             detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
-            box_class = get_box_class(elem_tag)
+            box_class = get_box_class(elem_tag, elem)
 
             box_parts, actual_height = draw_box(center_x - box_width/2, current_y, box_width, box_height,
                                        elem_id, elem_tag, detail, box_class)
@@ -500,17 +520,20 @@ def generate_branching_route_svg(route_id, route_xml, processors):
             current_y += actual_height + arrow_height
             svg_parts.append(f'<line x1="{center_x}" y1="{current_y - arrow_height}" x2="{center_x}" y2="{current_y}" class="arrow" />')
 
-        # Draw choice diamond/box
+        # Draw choice/multicast diamond/box
         choice_y = current_y
-        if choice_elem is not None:
-            choice_id = choice_elem.get('id', 'choice')
+        if branch_elem is not None:
+            branch_id = branch_elem.get('id', branch_tag)
+            branch_box_class = f"{branch_tag}-box"
             box_parts, actual_height = draw_box(center_x - box_width/2, current_y, box_width, box_height,
-                                       choice_id, "choice", f"{len(branches)} branches", "choice-box")
+                                       branch_id, branch_tag, f"{len(branches)} branches", branch_box_class)
             svg_parts.extend(box_parts)
             current_y += actual_height + arrow_height
 
         # Draw branches
         branch_start_y = current_y
+        branch_end_positions = []  # Track actual end position of each branch
+
         if branches:
             # Calculate branch positions
             total_branch_width = (num_branches - 1) * branch_spacing
@@ -530,32 +553,44 @@ def generate_branching_route_svg(route_id, route_xml, processors):
                 for elem in branch['elements']:
                     elem_id = elem.get('id', '')
                     elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+
+                    # No special handling needed - just render the element normally
+
+                    # Regular element (not a multicast direct: to)
                     detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
-                    box_class = get_box_class(elem_tag)
+                    box_class = get_box_class(elem_tag, elem)
 
                     box_parts, actual_height = draw_box(branch_x - box_width/2, branch_y, box_width, box_height,
                                                elem_id, elem_tag, detail, box_class)
                     svg_parts.extend(box_parts)
-                    branch_y += actual_height + arrow_height
+                    branch_y += actual_height
+                    # Only add arrow between elements
                     if branch['elements'].index(elem) < len(branch['elements']) - 1:
+                        branch_y += arrow_height
                         svg_parts.append(f'<line x1="{branch_x}" y1="{branch_y - arrow_height}" x2="{branch_x}" y2="{branch_y}" class="arrow" />')
 
+                # Store the actual end position of this branch (bottom of last box)
+                branch_end_positions.append(branch_y)
+
             # Find the maximum branch end Y
-            current_y = branch_start_y + branch_height
+            max_branch_end_y = max(branch_end_positions) if branch_end_positions else branch_start_y
+            current_y = max_branch_end_y
 
             # Draw merge arrows from all branches to center
+            merge_point_y = current_y + arrow_height
             for i in range(num_branches):
                 branch_x = start_branch_x + i * branch_spacing
-                svg_parts.append(f'<line x1="{branch_x}" y1="{current_y - arrow_height}" x2="{center_x}" y2="{current_y + arrow_height}" class="arrow" />')
+                svg_parts.append(f'<line x1="{branch_x}" y1="{branch_end_positions[i]}" x2="{center_x}" y2="{merge_point_y}" class="arrow" />')
 
-            current_y += arrow_height * 2
+            # Position next element at the merge point
+            current_y = merge_point_y
 
         # Draw elements after choice
         for elem in after_choice:
             elem_id = elem.get('id', '')
             elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
             detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
-            box_class = get_box_class(elem_tag)
+            box_class = get_box_class(elem_tag, elem)
 
             box_parts, actual_height = draw_box(center_x - box_width/2, current_y, box_width, box_height,
                                        elem_id, elem_tag, detail, box_class)
@@ -564,6 +599,10 @@ def generate_branching_route_svg(route_id, route_xml, processors):
             if after_choice.index(elem) < len(after_choice) - 1:
                 current_y += arrow_height
                 svg_parts.append(f'<line x1="{center_x}" y1="{current_y - arrow_height}" x2="{center_x}" y2="{current_y}" class="arrow" />')
+
+        # Update SVG height based on actual content
+        actual_height = current_y + 50  # Add some bottom padding
+        svg_parts[0] = f'<svg width="{total_width}" height="{actual_height}" xmlns="http://www.w3.org/2000/svg">'
 
         svg_parts.append('</svg>')
         return '\n'.join(svg_parts)
@@ -584,14 +623,25 @@ def get_element_detail(elem, elem_tag, proc_info):
         return proc_info.get('expression', '')
     elif elem_tag == 'setProperty':
         return f"name: {elem.get('name', '')}"
+    elif elem_tag == 'to':
+        uri = elem.get('uri', '')
+        if uri.startswith('direct:'):
+            route_name = uri.replace('direct:', '')
+            return f"→ {route_name}"
+        return f"URI: {uri}"
     return ""
 
 
-def get_box_class(elem_tag):
+def get_box_class(elem_tag, elem=None):
     """Get CSS class for element type"""
     elem_tag_lower = elem_tag.lower()
     if elem_tag_lower in ['log', 'setbody', 'choice', 'setproperty']:
         return f"{elem_tag_lower}-box"
+    # Special handling for "to" elements pointing to direct routes
+    if elem_tag_lower == 'to' and elem is not None:
+        uri = elem.get('uri', '')
+        if uri.startswith('direct:'):
+            return "route-call-box"
     return "default-box"
 
 
@@ -682,6 +732,173 @@ def parse_route_processors(route_xml):
         return []
 
 
+def render_inlined_route_with_branching(called_route_xml, branch_x, branch_y, box_width, box_height, arrow_height, proc_map):
+    """Render an inlined route that may contain choice/multicast elements with proper branching.
+
+    Returns: (svg_parts, final_y)
+    """
+    try:
+        ns = {'camel': 'http://camel.apache.org/schema/xml-io'}
+        root = ET.fromstring(called_route_xml)
+        svg_parts = []
+        current_y = branch_y
+
+        # Check if route has choice or multicast
+        choice_elem = root.find('.//camel:choice', ns) or root.find('.//choice')
+        multicast_elem = root.find('.//camel:multicast', ns) or root.find('.//multicast')
+
+        if choice_elem is None and multicast_elem is None:
+            # No branching - render sequentially
+            inlined_procs = parse_route_processors(called_route_xml)
+            for idx, inlined_proc in enumerate(inlined_procs):
+                inlined_tag = inlined_proc['tag']
+                inlined_elem = inlined_proc['element']
+                inlined_detail = get_element_detail(inlined_elem, inlined_tag, proc_map.get(inlined_proc['id'], {}))
+                inlined_box_class = get_box_class(inlined_tag, inlined_elem)
+
+                box_parts, actual_height = draw_box(branch_x - box_width/2, current_y, box_width, box_height,
+                                           inlined_elem.get('id', ''), inlined_tag, inlined_detail, inlined_box_class)
+                svg_parts.extend(box_parts)
+                current_y += actual_height
+                # Only add arrow if not the last inlined processor
+                if idx < len(inlined_procs) - 1:
+                    current_y += arrow_height
+                    svg_parts.append(f'<line x1="{branch_x}" y1="{current_y - arrow_height}" x2="{branch_x}" y2="{current_y}" class="arrow" />')
+            return svg_parts, current_y
+
+        # Has branching - split into before, branching, after
+        branch_elem = choice_elem if choice_elem is not None else multicast_elem
+        branch_tag = 'choice' if choice_elem is not None else 'multicast'
+
+        # Get elements before branching
+        before_branch = []
+        for child in root:
+            if child.tag.endswith('from'):
+                continue
+            if child.tag.endswith(('choice', 'multicast')):
+                break
+            before_branch.append(child)
+
+        # Get elements after branching
+        after_branch = []
+        found_branch = False
+        for child in root:
+            if child.tag.endswith(('choice', 'multicast')):
+                found_branch = True
+                continue
+            if found_branch:
+                after_branch.append(child)
+
+        # Render before-branch elements
+        for elem in before_branch:
+            elem_id = elem.get('id', '')
+            elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
+            box_class = get_box_class(elem_tag, elem)
+
+            box_parts, actual_height = draw_box(branch_x - box_width/2, current_y, box_width, box_height,
+                                       elem_id, elem_tag, detail, box_class)
+            svg_parts.extend(box_parts)
+            current_y += actual_height + arrow_height
+            svg_parts.append(f'<line x1="{branch_x}" y1="{current_y - arrow_height}" x2="{branch_x}" y2="{current_y}" class="arrow" />')
+
+        # Render the branching element
+        branch_id = branch_elem.get('id', branch_tag)
+        branches = []
+
+        if choice_elem is not None:
+            # Extract choice branches
+            when_elems = choice_elem.findall('.//camel:when', ns) or choice_elem.findall('.//when')
+            otherwise_elem = choice_elem.find('.//camel:otherwise', ns) or choice_elem.find('.//otherwise')
+
+            for i, when_elem in enumerate(when_elems):
+                branches.append({'label': f'when #{i+1}', 'elements': list(when_elem)})
+
+            if otherwise_elem is not None:
+                branches.append({'label': 'otherwise', 'elements': list(otherwise_elem)})
+        elif multicast_elem is not None:
+            # Extract multicast branches
+            to_elems = [elem for elem in multicast_elem if elem.tag.endswith('to')]
+            for i, to_elem in enumerate(to_elems):
+                uri = to_elem.get('uri', '')
+                branches.append({'label': f'branch {i+1}: {uri}', 'elements': [to_elem], 'uri': uri})
+
+        # Draw branching box
+        branch_box_class = f"{branch_tag}-box"
+        box_parts, actual_height = draw_box(branch_x - box_width/2, current_y, box_width, box_height,
+                                   branch_id, branch_tag, f"{len(branches)} branches", branch_box_class)
+        svg_parts.extend(box_parts)
+        current_y += actual_height + arrow_height
+
+        # Calculate branch positions
+        num_branches = len(branches)
+        branch_spacing = max(350, box_width + 100)
+        total_branch_width = (num_branches - 1) * branch_spacing
+        start_branch_x = branch_x - total_branch_width / 2
+
+        # Draw each branch
+        branch_end_positions = []
+        for i, branch in enumerate(branches):
+            sub_branch_x = start_branch_x + i * branch_spacing
+            sub_branch_y = current_y
+
+            # Draw arrow to branch
+            svg_parts.append(f'<line x1="{branch_x}" y1="{current_y - arrow_height}" x2="{sub_branch_x}" y2="{sub_branch_y}" class="arrow" />')
+            svg_parts.append(f'<text x="{sub_branch_x}" y="{sub_branch_y - 10}" text-anchor="middle" class="branch-label">{branch["label"]}</text>')
+
+            # Draw branch elements
+            for elem in branch['elements']:
+                elem_id = elem.get('id', '')
+                elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+                detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
+                box_class = get_box_class(elem_tag, elem)
+
+                box_parts, actual_height = draw_box(sub_branch_x - box_width/2, sub_branch_y, box_width, box_height,
+                                           elem_id, elem_tag, detail, box_class)
+                svg_parts.extend(box_parts)
+                sub_branch_y += actual_height
+                # Only add arrow between elements
+                if branch['elements'].index(elem) < len(branch['elements']) - 1:
+                    sub_branch_y += arrow_height
+                    svg_parts.append(f'<line x1="{sub_branch_x}" y1="{sub_branch_y - arrow_height}" x2="{sub_branch_x}" y2="{sub_branch_y}" class="arrow" />')
+
+            branch_end_positions.append(sub_branch_y)
+
+        # Find max branch end
+        max_branch_end_y = max(branch_end_positions) if branch_end_positions else current_y
+        current_y = max_branch_end_y
+
+        # Draw merge arrows
+        merge_point_y = current_y + arrow_height
+        for i in range(num_branches):
+            sub_branch_x = start_branch_x + i * branch_spacing
+            svg_parts.append(f'<line x1="{sub_branch_x}" y1="{branch_end_positions[i]}" x2="{branch_x}" y2="{merge_point_y}" class="arrow" />')
+
+        # Position next element at the merge point
+        current_y = merge_point_y
+
+        # Render after-branch elements
+        for elem in after_branch:
+            elem_id = elem.get('id', '')
+            elem_tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            detail = get_element_detail(elem, elem_tag, proc_map.get(elem_id, {}))
+            box_class = get_box_class(elem_tag, elem)
+
+            box_parts, actual_height = draw_box(branch_x - box_width/2, current_y, box_width, box_height,
+                                       elem_id, elem_tag, detail, box_class)
+            svg_parts.extend(box_parts)
+            current_y += actual_height
+            if after_branch.index(elem) < len(after_branch) - 1:
+                current_y += arrow_height
+                svg_parts.append(f'<line x1="{branch_x}" y1="{current_y - arrow_height}" x2="{branch_x}" y2="{current_y}" class="arrow" />')
+
+        return svg_parts, current_y
+
+    except Exception as e:
+        logger.error(f"Error rendering inlined route with branching: {e}")
+        return [], branch_y
+
+
 def generate_sequential_route_svg(route_id, from_id, from_uri, processors, route_xml=None):
     """Generate SVG visualization for a sequential route with route inlining"""
 
@@ -752,7 +969,7 @@ def generate_sequential_route_svg(route_id, from_id, from_uri, processors, route
 
                         # Get details for this processor
                         detail = get_element_detail(elem, tag, {})
-                        box_class = get_box_class(tag)
+                        box_class = get_box_class(tag, elem)
 
                         elements_to_draw.append({
                             'type': tag,

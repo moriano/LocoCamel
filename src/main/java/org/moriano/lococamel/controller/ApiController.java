@@ -39,4 +39,16 @@ public class ApiController {
         String result = producerTemplate.requestBody("direct:hello-and-goodbye", null, String.class);
         return result;
     }
+
+    @GetMapping("/hello-and-goodbye-multicast")
+    public String helloAndGoodbyeMulticast() {
+        String result = producerTemplate.requestBody("direct:hello-and-goodbye-multicast", null, String.class);
+        return result;
+    }
+
+    @GetMapping("/mega")
+    public String mega() {
+        String result = producerTemplate.requestBody("direct:mega", null, String.class);
+        return result;
+    }
 }
